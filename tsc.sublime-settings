@@ -1,0 +1,6 @@
+{
+    "node": "/usr/local/bin/node",
+    "tsc":  "/usr/local/lib/node_modules/typescript/bin/tsc.js",
+    "src": "/src",
+    "out":  "/app.js"
+}
