@@ -15,6 +15,8 @@ class TypescripCommand(sublime_plugin.EventListener):
         root = folders[0]
         src = root + settings.get("src")
 
+        print '-----------------------------------------------'
+
         dependency_resolver = TypescriptDependencyResolver(src)
         src_files = dependency_resolver.collect_files()
         if len(src_files) == 0:
@@ -148,14 +150,15 @@ class TypescriptDependencyResolver:
         self.src_path = src_path
         self.src_files = []
         self.resolved_dependencies = []
+        self.initialized = False
         self.type_matcher = re.compile('((interface)|(class))\s+([a-zA-Z0-9]+)')
 
     def resolve(self, file_path):
-        self.src_files = []
-        if (len(self.src_files) == 0):
+        if not self.initialized:
             self.collect_files()
             self.collect_declarations()
             self.collect_dependencies()
+            self.initialized = True
 
         self.resolved_dependencies = []
         self.resolve_file_dependency(file_path, [])
