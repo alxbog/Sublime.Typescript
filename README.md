@@ -1,4 +1,4 @@
 Sublime.Typescript
 ==================
 
-Simple Sublime Text 2 plugin for build type script project into single js file without references in source files.
+Simple Sublime Text 3 plugin for build type script project into a single JS file without references in source files.

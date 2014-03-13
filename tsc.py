@@ -1,11 +1,17 @@
-import sublime, sublime_plugin, os, subprocess, re, datetime
+import sublime, sublime_plugin, os, subprocess, re, datetime, threading
 
-class TypescripCommand(sublime_plugin.EventListener):
+class TypescriptCommand(sublime_plugin.EventListener):
     def on_post_save(self, view):
-        self.rebuild(view)
+        thread = Builder(view)
+        thread.start()
 
+class Builder(threading.Thread):
+    def __init__(self, view):
+        self.view = view
+        threading.Thread.__init__(self)
 
-    def rebuild(self, view):
+    def run(self):
+        view = self.view
         settings = sublime.load_settings("tsc.sublime-settings")
         folders = view.window().folders()
 
@@ -15,15 +21,15 @@ class TypescripCommand(sublime_plugin.EventListener):
         root = folders[0]
         src = root + settings.get("src")
 
-        print '-----------------------------------------------'
-
+        print("-----------------------------------------------")
+        
         dependency_resolver = TypescriptDependencyResolver(src)
         src_files = dependency_resolver.collect_files()
         if len(src_files) == 0:
             return
 
         now = datetime.datetime.now()
-        print 'Resolve dependencies'
+        print("Resolving dependencies...")
         dependencies = []
         for f in src_files:
             resolved_dependencies = dependency_resolver.resolve(f)
@@ -31,12 +37,9 @@ class TypescripCommand(sublime_plugin.EventListener):
                 if not d in dependencies:
                     dependencies.append(d)
 
-        print (datetime.datetime.now() - now).microseconds
-
         now = datetime.datetime.now()
-        print 'Compile sources'
+        print("Compiling sources...")
         build_result = self.build(settings.get("node"), settings.get("tsc"), dependencies, root + settings.get("out"))
-        print (datetime.datetime.now() - now).microseconds
 
         self.report_result(view, build_result)
 
@@ -46,12 +49,13 @@ class TypescripCommand(sublime_plugin.EventListener):
             v.erase_regions("tsc_errors")
 
         if len(build_result[1]) > 0:
-            print 'Complete with errors'
-            errors = self.parse_errors(build_result[1])
+            print("Build failed.")
+            errors = self.parse_errors(build_result[1].decode("utf-8"))
             self.report_error_result(view, errors)
+            view.set_status("Typescript", "Build failed")
         else:
-            print 'Complete successfully'
-            view.set_status('Typescript', 'Build completed successfully')
+            print("Build succeeded.")
+            view.set_status("Typescript", "Build succeeded")
 
 
     def report_error_result(self, view, errors):
@@ -121,7 +125,6 @@ class TypescripCommand(sublime_plugin.EventListener):
         appended_lines = []
         result = []
         lines = error_message.split('\n')
-
         for line in lines:
             if not line in appended_lines:
                 m = re.search('([^\(]*)\((\d+),(\d+)\):\s+((.*[\s\r\n]*.*)+)\s*$', line)
@@ -130,7 +133,6 @@ class TypescripCommand(sublime_plugin.EventListener):
                     result.append(error)
 
                 appended_lines.append(line)
-
         return result
 
 
@@ -187,9 +189,8 @@ class TypescriptDependencyResolver:
             self.collect_declarations_from_file(f)
 
     def collect_declarations_from_file(self, file_path):
-        f = open(file_path, "r")
-        lines = f.readlines()
-        for line in lines:
+        f = open(file_path, "r", encoding="utf-8")
+        for line in f:
             m = self.type_matcher.search(line)
             if m != None:
                 declaration = TypescriptTypeDeclaration(m.group(4), file_path)
@@ -202,7 +203,7 @@ class TypescriptDependencyResolver:
             self.dependencies.append(dependency)
 
     def collect_file_dependencies(self, file_path):
-        f = open(file_path, "r")
+        f = open(file_path, "r", encoding="utf-8")
         source = f.read()
         dependencies = []
         for declaration in self.declarations:
